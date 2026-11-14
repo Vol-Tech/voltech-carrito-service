@@ -21,7 +21,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "carrito_item")
 
-public class CarritoItem {
+public class Producto {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
 
