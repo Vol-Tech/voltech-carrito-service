@@ -36,8 +36,75 @@ public class CarritoService {
 
     for (CarritoItem item : items) {
       respuestas.add(CarritoMapper.toResponse(item));
-      total += item.getCantidad();
+      total += item.getPrecio() * item.getCantidad();
+      cantidadTotal += item.getCantidad();
     }
+
     return new CarritoResponse(usuarioId, respuestas, total, cantidadTotal);
+  }
+
+  public CarritoResponse agregarItem(AgregarItemRequest request) {
+    Producto producto = buscarProducto(request.productoId());
+    Optional<CarritoItem> existente = carritoItemRepo
+        .findByUsuarioIdAndProductoId(request.usuarioId(), request.productoId());
+
+    int cantidadActual = 0;
+    if (existente.isPresent()) {
+      cantidadActual = existente.get().getCantidad();
+    }
+
+    int nuevaCantidad = cantidadActual + request.cantidad();
+    validarStock(producto, nuevaCantidad);
+
+    if (existente.isPresent()) {
+      CarritoItem item = existente.get();
+      item.setCantidad(nuevaCantidad);
+      carritoItemRepo.save(item);
+    } else {
+      carritoItemRepo.save(CarritoMapper.toModel(request, producto));
+    }
+
+    return obtenerCarrito(request.usuarioId());
+  }
+
+  public CarritoResponse cambiarCantidad(int id, CambiarCantidadRequest request) {
+    CarritoItem item = buscarItem(id);
+    Producto producto = buscarProducto(item.getProductoId());
+
+    validarStock(producto, request.cantidad());
+
+    item.setCantidad(request.cantidad());
+    carritoItemRepo.save(item);
+
+    return obtenerCarrito(item.getUsuarioId());
+  }
+
+  public CarritoResponse eliminarItem(int id) {
+    CarritoItem item = buscarItem(id);
+    carritoItemRepo.deleteById(id);
+
+    return obtenerCarrito(item.getUsuarioId());
+  }
+
+  public void vaciarCarrito(int usuarioId) {
+    List<CarritoItem> items = carritoItemRepo.findByUsuarioId(usuarioId);
+    carritoItemRepo.deleteAll(items);
+  }
+
+  private Producto buscarProducto(int productoId) {
+    return productoRepo.findById(productoId)
+        .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id " + productoId));
+  }
+
+  private CarritoItem buscarItem(int id) {
+    return carritoItemRepo.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Item del carrito no encontrado con id " + id));
+  }
+
+  private void validarStock(Producto producto, int cantidad) {
+    if (cantidad > producto.getStock()) {
+      throw new StockInsuficienteException(
+          "Stock insuficiente: quedan " + producto.getStock() + " unidades de " + producto.getNombre());
+    }
   }
 }
